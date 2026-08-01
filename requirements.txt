@@ -1,7 +1,4 @@
-streamlit
-pandas
+Flask
 numpy
 scikit-learn
-xgboost
-PyMySQL
-SQLAlchemy
+gunicorn
