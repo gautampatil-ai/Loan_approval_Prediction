@@ -36,58 +36,54 @@ st.markdown("""
 
 
 # -----------------------------------------------------------------------------
-# 2. DEFINE FUNCTION FIRST (Must be above line 80 where it is called)
+# 2. Self-Contained In-Memory Model Trainer & Loader
 # -----------------------------------------------------------------------------
 @st.cache_resource
 def load_model_assets():
-    file_path = "model_data.pkl" if os.path.exists("model_data.pkl") else "Xgboosgt_model.pkl"
-    
-    # If no pkl file exists, train model dynamically in-memory
-    if not os.path.exists(file_path):
-        np.random.seed(42)
-        n_samples = 1000
-        data = {
-            "no_of_dependents": np.random.randint(0, 6, n_samples),
-            "education": np.random.choice([" Graduate", " Not Graduate"], n_samples),
-            "self_employed": np.random.choice([" No", " Yes"], n_samples),
-            "income_annum": np.random.randint(200000, 9900000, n_samples),
-            "loan_amount": np.random.randint(300000, 39500000, n_samples),
-            "loan_term": np.random.randint(2, 21, n_samples),
-            "cibil_score": np.random.randint(300, 901, n_samples),
-            "residential_assets_value": np.random.randint(0, 29100000, n_samples),
-            "commercial_assets_value": np.random.randint(0, 19400000, n_samples),
-            "luxury_assets_value": np.random.randint(200000, 39200000, n_samples),
-            "bank_asset_value": np.random.randint(0, 14700000, n_samples),
-        }
-        df = pd.DataFrame(data)
-        loan_status_prob = (df["cibil_score"] > 600) & (df["loan_amount"] < df["income_annum"] * 5)
-        df["loan_status"] = np.where(loan_status_prob, " Approved", " Rejected")
+    # 1. Generate clean training data matching dataset schema
+    np.random.seed(42)
+    n_samples = 1200
 
-        encoders = {}
-        for col in df.select_dtypes(include="object").columns:
-            le = LabelEncoder()
-            df[col] = le.fit_transform(df[col])
-            encoders[col] = le
+    data = {
+        "no_of_dependents": np.random.randint(0, 6, n_samples),
+        "education": np.random.choice([" Graduate", " Not Graduate"], n_samples),
+        "self_employed": np.random.choice([" No", " Yes"], n_samples),
+        "income_annum": np.random.randint(200000, 9900000, n_samples),
+        "loan_amount": np.random.randint(300000, 39500000, n_samples),
+        "loan_term": np.random.randint(2, 21, n_samples),
+        "cibil_score": np.random.randint(300, 901, n_samples),
+        "residential_assets_value": np.random.randint(0, 29100000, n_samples),
+        "commercial_assets_value": np.random.randint(0, 19400000, n_samples),
+        "luxury_assets_value": np.random.randint(200000, 39200000, n_samples),
+        "bank_asset_value": np.random.randint(0, 14700000, n_samples),
+    }
 
-        X = df.drop("loan_status", axis=1)
-        y = df["loan_status"]
-        model = XGBClassifier(n_estimators=300, max_depth=6, learning_rate=0.05, random_state=42)
-        model.fit(X, y)
+    df = pd.DataFrame(data)
 
-        return model, encoders, X.columns.tolist()
-        
-    try:
-        with open(file_path, "rb") as f:
-            data = pickle.load(f)
-            
-        if isinstance(data, dict):
-            return data.get("model"), data.get("encoders", {}), data.get("feature_names", [])
-        else:
-            return data, {}, []
-            
-    except Exception as e:
-        st.error(f"Failed to load model file: {e}")
-        st.stop()
+    # Business rule logic for synthetic dataset target creation
+    loan_status_prob = (df["cibil_score"] > 600) & (df["loan_amount"] < df["income_annum"] * 5)
+    df["loan_status"] = np.where(loan_status_prob, " Approved", " Rejected")
+
+    # Fit Encoders
+    encoders = {}
+    for col in df.select_dtypes(include="object").columns:
+        le = LabelEncoder()
+        df[col] = le.fit_transform(df[col])
+        encoders[col] = le
+
+    X = df.drop("loan_status", axis=1)
+    y = df["loan_status"]
+
+    # Train XGBoost Model
+    model = XGBClassifier(
+        n_estimators=300,
+        max_depth=6,
+        learning_rate=0.05,
+        random_state=42
+    )
+    model.fit(X, y)
+
+    return model, encoders, X.columns.tolist()
 
 
 # -----------------------------------------------------------------------------
