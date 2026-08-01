@@ -1,5 +1,6 @@
 import os
 import pickle
+import pandas as pd
 import numpy as np
 import streamlit as st
 
@@ -42,7 +43,6 @@ with col2:
     bank_assets = st.number_input("Bank Assets ($)", value=5000000)
 
 if st.button("Predict Eligibility", type="primary"):
- import pandas as pd
 
 features = pd.DataFrame([{
     "loan_id": loan_id,
