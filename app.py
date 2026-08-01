@@ -47,34 +47,47 @@ st.markdown("""
 
 
 # -----------------------------------------------------------------------------
-# Safe Model Loading Function
+# Safe Model & Asset Loader
 # -----------------------------------------------------------------------------
 @st.cache_resource
 def load_model_assets():
     import os
     
-    # Check for model_data.pkl or fall back to Xgboosgt_model.pkl
+    # Check for model file
     file_path = "model_data.pkl" if os.path.exists("model_data.pkl") else "Xgboosgt_model.pkl"
     
     if not os.path.exists(file_path):
-        st.error(f"❌ Error: Model file '{file_path}' not found in the root repository folder.")
+        st.error(f"❌ Model file '{file_path}' not found in root directory.")
         st.stop()
         
     try:
-        # ALWAYS use 'rb' (read binary) mode
         with open(file_path, "rb") as f:
             data = pickle.load(f)
             
-        # Handle dictionary vs raw model file
+        # If saved as a dictionary (model + encoders + feature_names)
         if isinstance(data, dict):
-            return data.get("model"), data.get("encoders", {}), data.get("feature_names", [])
+            model = data.get("model")
+            encoders = data.get("encoders", {})
+            feature_names = data.get("feature_names", [])
+            return model, encoders, feature_names
         else:
+            # If saved as just the raw model object
             return data, {}, []
             
     except Exception as e:
-        st.error(f"❌ Failed to load pickle file: {e}")
+        st.error(f"❌ Failed to load model file: {e}")
         st.stop()
 
+# Load assets and ALWAYS ensure fallback values exist
+model, encoders, feature_names = load_model_assets()
+
+# Fallback feature names if empty
+if not feature_names:
+    feature_names = [
+        'no_of_dependents', 'education', 'self_employed', 'income_annum',
+        'loan_amount', 'loan_term', 'cibil_score', 'residential_assets_value',
+        'commercial_assets_value', 'luxury_assets_value', 'bank_asset_value'
+    ]
 
 # -----------------------------------------------------------------------------
 # 3. Header & Sidebar Section
