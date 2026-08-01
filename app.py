@@ -52,7 +52,7 @@ st.markdown("""
 @st.cache_resource
 def load_model_assets():
     try:
-        with open("model.pkl", "rb") as f:
+        with open("model_data.pkl", "wb") as f:
             data = pickle.load(f)
         return data["model"], data["encoders"], data["feature_names"]
     except FileNotFoundError:
