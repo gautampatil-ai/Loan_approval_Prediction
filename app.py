@@ -1,8 +1,52 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import LabelEncoder
-from xgboost import XGBClassifier
+import pickle
+
+# -----------------------------------------------------------------------------
+# 1. Page Configuration & Custom Styling
+# -----------------------------------------------------------------------------
+st.set_page_config(
+    page_title="Loan Approval Prediction System",
+    page_icon="💳",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Custom CSS for professional Data Science aesthetic
+st.markdown("""
+    <style>
+    .main-header {
+        font-size: 2.3rem;
+        font-weight: 700;
+        color: #1E3A8A;
+        text-align: center;
+        margin-bottom: 0.5rem;
+    }
+    .sub-header {
+        font-size: 1.1rem;
+        color: #4B5563;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .card {
+        background-color: #F9FAFB;
+        padding: 1.5rem;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        margin-bottom: 1rem;
+    }
+    .metric-box {
+        background-color: #EFF6FF;
+        border-left: 5px solid #2563EB;
+        padding: 1rem;
+        border-radius: 5px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# Initialize model
+model, encoders, feature_names = load_model_assets()
 
 # -----------------------------------------------------------------------------
 # Train and Cache Model directly in app.py (No .pkl dependency needed!)
@@ -48,41 +92,6 @@ def load_model_assets():
     model.fit(X, y)
 
     return model, encoders, X.columns.tolist()
-
-# Initialize model
-model, encoders, feature_names = load_model_assets()
-
-# -----------------------------------------------------------------------------
-# Safe Model & Asset Loader
-# -----------------------------------------------------------------------------
-@st.cache_resource
-def load_model_assets():
-    import os
-    
-    # Check for model file
-    file_path = "model_data.pkl" if os.path.exists("model_data.pkl") else "Xgboosgt_model.pkl"
-    
-    if not os.path.exists(file_path):
-        st.error(f"❌ Model file '{file_path}' not found in root directory.")
-        st.stop()
-        
-    try:
-        with open(file_path, "rb") as f:
-            data = pickle.load(f)
-            
-        # If saved as a dictionary (model + encoders + feature_names)
-        if isinstance(data, dict):
-            model = data.get("model")
-            encoders = data.get("encoders", {})
-            feature_names = data.get("feature_names", [])
-            return model, encoders, feature_names
-        else:
-            # If saved as just the raw model object
-            return data, {}, []
-            
-    except Exception as e:
-        st.error(f"❌ Failed to load model file: {e}")
-        st.stop()
 
 # Load assets and ALWAYS ensure fallback values exist
 model, encoders, feature_names = load_model_assets()
