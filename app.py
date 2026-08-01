@@ -47,19 +47,33 @@ st.markdown("""
 
 
 # -----------------------------------------------------------------------------
-# 2. Load Trained Model Assets
+# Safe Model Loading Function
 # -----------------------------------------------------------------------------
 @st.cache_resource
 def load_model_assets():
-    try:
-        with open("model_data.pkl", "wb") as f:
-            data = pickle.load(f)
-        return data["model"], data["encoders"], data["feature_names"]
-    except FileNotFoundError:
-        st.error("Error: `model_data.pkl` file not found. Please train and save the model first.")
+    import os
+    
+    # Check for model_data.pkl or fall back to Xgboosgt_model.pkl
+    file_path = "model_data.pkl" if os.path.exists("model_data.pkl") else "Xgboosgt_model.pkl"
+    
+    if not os.path.exists(file_path):
+        st.error(f"❌ Error: Model file '{file_path}' not found in the root repository folder.")
         st.stop()
-
-model, encoders, feature_names = load_model_assets()
+        
+    try:
+        # ALWAYS use 'rb' (read binary) mode
+        with open(file_path, "rb") as f:
+            data = pickle.load(f)
+            
+        # Handle dictionary vs raw model file
+        if isinstance(data, dict):
+            return data.get("model"), data.get("encoders", {}), data.get("feature_names", [])
+        else:
+            return data, {}, []
+            
+    except Exception as e:
+        st.error(f"❌ Failed to load pickle file: {e}")
+        st.stop()
 
 
 # -----------------------------------------------------------------------------
