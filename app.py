@@ -42,11 +42,22 @@ with col2:
     bank_assets = st.number_input("Bank Assets ($)", value=5000000)
 
 if st.button("Predict Eligibility", type="primary"):
-    features = np.array([[
-        loan_id, dependents, education, self_employed, income_annum,
-        loan_amount, loan_term, cibil_score, res_assets, comm_assets,
-        lux_assets, bank_assets
-    ]])
+ import pandas as pd
+
+features = pd.DataFrame([{
+    "loan_id": loan_id,
+    "no_of_dependents": dependents,
+    "education": education,
+    "self_employed": self_employed,
+    "income_annum": income_annum,
+    "loan_amount": loan_amount,
+    "loan_term": loan_term,
+    "cibil_score": cibil_score,
+    "residential_assets_value": res_assets,
+    "commercial_assets_value": comm_assets,
+    "luxury_assets_value": lux_assets,
+    "bank_asset_value": bank_assets
+}])
     
     prediction = model.predict(features)[0]
     probs = model.predict_proba(features)[0]
