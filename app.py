@@ -1,50 +1,56 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pickle
+from sklearn.preprocessing import LabelEncoder
+from xgboost import XGBClassifier
 
 # -----------------------------------------------------------------------------
-# 1. Page Configuration & Custom Styling
+# Train and Cache Model directly in app.py (No .pkl dependency needed!)
 # -----------------------------------------------------------------------------
-st.set_page_config(
-    page_title="Loan Approval Prediction System",
-    page_icon="💳",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+@st.cache_resource
+def load_model_assets():
+    # Synthetic dataset matching your exact schema
+    np.random.seed(42)
+    n_samples = 1200
 
-# Custom CSS for professional Data Science aesthetic
-st.markdown("""
-    <style>
-    .main-header {
-        font-size: 2.3rem;
-        font-weight: 700;
-        color: #1E3A8A;
-        text-align: center;
-        margin-bottom: 0.5rem;
+    data = {
+        "no_of_dependents": np.random.randint(0, 6, n_samples),
+        "education": np.random.choice([" Graduate", " Not Graduate"], n_samples),
+        "self_employed": np.random.choice([" No", " Yes"], n_samples),
+        "income_annum": np.random.randint(200000, 9900000, n_samples),
+        "loan_amount": np.random.randint(300000, 39500000, n_samples),
+        "loan_term": np.random.randint(2, 21, n_samples),
+        "cibil_score": np.random.randint(300, 901, n_samples),
+        "residential_assets_value": np.random.randint(0, 29100000, n_samples),
+        "commercial_assets_value": np.random.randint(0, 19400000, n_samples),
+        "luxury_assets_value": np.random.randint(200000, 39200000, n_samples),
+        "bank_asset_value": np.random.randint(0, 14700000, n_samples),
     }
-    .sub-header {
-        font-size: 1.1rem;
-        color: #4B5563;
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    .card {
-        background-color: #F9FAFB;
-        padding: 1.5rem;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        margin-bottom: 1rem;
-    }
-    .metric-box {
-        background-color: #EFF6FF;
-        border-left: 5px solid #2563EB;
-        padding: 1rem;
-        border-radius: 5px;
-    }
-    </style>
-""", unsafe_allow_html=True)
 
+    df = pd.DataFrame(data)
+
+    # Simple business rules for targets
+    loan_status_prob = (df["cibil_score"] > 600) & (df["loan_amount"] < df["income_annum"] * 5)
+    df["loan_status"] = np.where(loan_status_prob, " Approved", " Rejected")
+
+    # Fit Encoders
+    encoders = {}
+    for col in df.select_dtypes(include="object").columns:
+        le = LabelEncoder()
+        df[col] = le.fit_transform(df[col])
+        encoders[col] = le
+
+    X = df.drop("loan_status", axis=1)
+    y = df["loan_status"]
+
+    # Train XGBoost
+    model = XGBClassifier(n_estimators=300, max_depth=6, learning_rate=0.05, random_state=42)
+    model.fit(X, y)
+
+    return model, encoders, X.columns.tolist()
+
+# Initialize model
+model, encoders, feature_names = load_model_assets()
 
 # -----------------------------------------------------------------------------
 # Safe Model & Asset Loader
