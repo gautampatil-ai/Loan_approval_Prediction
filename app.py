@@ -79,20 +79,20 @@ with col_right:
     if submit_button:
         try:
             # Construct DataFrame matching training dataset structure
-     input_data = pd.DataFrame([{
-    'loan_id': 1001,
-    'no_of_dependents': int(no_of_dependents),
-    'education': str(education),      # Pass string directly: "Graduate" or "Not Graduate"
-    'self_employed': str(self_employed), # Pass string directly: "Yes" or "No"
-    'income_annum': float(income_annum),
-    'loan_amount': float(loan_amount),
-    'loan_term': float(loan_term),
-    'cibil_score': float(cibil_score),
-    'residential_assets_value': float(residential_assets_value),
-    'commercial_assets_value': float(commercial_assets_value),
-    'luxury_assets_value': float(luxury_assets_value),
-    'bank_asset_value': float(bank_asset_value)
-}])
+            input_data = pd.DataFrame([{
+                'loan_id': 1001,
+                'no_of_dependents': int(no_of_dependents),
+                'education': str(education),      # Pass string directly: "Graduate" or "Not Graduate"
+                'self_employed': str(self_employed), # Pass string directly: "Yes" or "No"
+                'income_annum': float(income_annum),
+                'loan_amount': float(loan_amount),
+                'loan_term': float(loan_term),
+                'cibil_score': float(cibil_score),
+                'residential_assets_value': float(residential_assets_value),
+                'commercial_assets_value': float(commercial_assets_value),
+                'luxury_assets_value': float(luxury_assets_value),
+                'bank_asset_value': float(bank_asset_value)
+            }])
 
             # Execute pipeline prediction
             prediction = pipeline.predict(input_data)[0]
