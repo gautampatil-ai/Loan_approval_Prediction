@@ -1,0 +1,66 @@
+import pandas as pd
+import pickle
+from sqlalchemy import create_engine
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from xgboost import XGBClassifier
+from sklearn.metrics import accuracy_score
+
+# Connect to MySQL
+engine = create_engine("mysql+pymysql://root:1234@localhost/XGBOOST")
+
+# Load data
+df = pd.read_sql("SELECT * FROM loan_approval_dataset", engine)
+
+# Drop ID column
+df.drop("loan_id", axis=1, inplace=True)
+
+# Encode categorical columns
+encoders = {}
+
+for col in df.select_dtypes(include="object").columns:
+    le = LabelEncoder()
+    df[col] = le.fit_transform(df[col])
+    encoders[col] = le
+
+# Features and target
+X = df.drop("loan_status", axis=1)
+y = df["loan_status"]
+
+# Split dataset
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.2,
+    random_state=42
+)
+
+# Train XGBoost model
+model = XGBClassifier(
+    n_estimators=300,
+    max_depth=6,
+    learning_rate=0.05,
+    random_state=42
+)
+
+model.fit(X_train, y_train)
+
+# Accuracy
+y_pred = model.predict(X_test)
+print("Accuracy:", accuracy_score(y_test, y_pred))
+
+# Save everything in one pickle file
+import pickle
+
+# Bundle the model, encoders, and column names into a dictionary
+model_data = {
+    "model": model,
+    "encoders": encoders,
+    "feature_names": X.columns.tolist()
+}
+
+# Save it using write binary ('wb') mode
+with open("model_data.pkl", "wb") as f:
+    pickle.dump(model_data, f)
+
+print("model_data.pkl created successfully!")
