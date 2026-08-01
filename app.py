@@ -80,6 +80,7 @@ with col_right:
         try:
             # Construct DataFrame matching training dataset structure
             input_data = pd.DataFrame([{
+                'loan_id': 1001,  # Added missing feature expected by the trained model
                 'no_of_dependents': int(no_of_dependents),
                 'education': str(education),
                 'self_employed': str(self_employed),
