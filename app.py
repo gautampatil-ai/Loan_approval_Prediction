@@ -1,60 +1,124 @@
 import os
 import pickle
-import numpy as np
+import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="Loan Approval Predictor", layout="centered")
+# Set Streamlit Page Configuration
+st.set_page_config(
+    page_title="Enterprise Loan Eligibility Predictor",
+    page_icon="🏦",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# Load model cleanly from file
+# Custom CSS styling for professional UI
+st.markdown("""
+    <style>
+    .main-header { font-size: 2.2rem; font-weight: 700; color: #1E293B; margin-bottom: 0.5rem; }
+    .sub-header { font-size: 1rem; color: #64748B; margin-bottom: 2rem; }
+    .card { background-color: #F8FAFC; padding: 1.5rem; border-radius: 0.75rem; border: 1px solid #E2E8F0; }
+    </style>
+""", unsafe_allow_html=True)
+
+# 1. Cached Model Loading Function
 @st.cache_resource
-def load_model():
+def load_pipeline():
     model_path = os.path.join(os.path.dirname(__file__), 'model.pkl')
     if not os.path.exists(model_path):
-        raise FileNotFoundError("`model.pkl` file not found in directory!")
+        st.error(f"⚠️ Model file not found at `{model_path}`. Please run `train.py` first.")
+        st.stop()
     with open(model_path, 'rb') as f:
         return pickle.load(f)
 
-try:
-    model = load_model()
-except Exception as e:
-    st.error(f"Error loading model: {e}")
-    st.stop()
+pipeline = load_pipeline()
 
-st.title("🏦 Loan Risk Scoring Dashboard")
-st.write("Predict loan approval status using machine learning.")
+# Header Section
+st.markdown('<div class="main-header">🏦 Enterprise Loan Risk Engine</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">Evaluate applicant default probability and approval confidence in real-time.</div>', unsafe_allow_html=True)
 
-with st.form("loan_form"):
-    col1, col2 = st.columns(2)
-    with col1:
-        loan_id = st.number_input("Loan ID", value=1001)
-        no_of_dependents = st.number_input("Dependents", value=2, min_value=0)
-        education = st.selectbox("Education", options=[(1, "Graduate"), (0, "Not Graduate")], format_func=lambda x: x[1])[0]
-        self_employed = st.selectbox("Employment Status", options=[(0, "Salaried"), (1, "Self Employed")], format_func=lambda x: x[1])[0]
-        income_annum = st.number_input("Annual Income ($)", value=7500000)
-        loan_amount = st.number_input("Loan Amount ($)", value=15000000)
+# 2. Sidebar Input Form
+st.sidebar.header("📋 Applicant Profile")
+
+with st.sidebar.form(key="applicant_form"):
+    st.subheader("Personal & Demographic")
+    no_of_dependents = st.number_input("Number of Dependents", min_value=0, max_value=10, value=2, step=1)
+    education = st.selectbox("Education Level", options=["Graduate", "Not Graduate"])
+    self_employed = st.selectbox("Employment Status", options=["No", "Yes"], format_func=lambda x: "Self Employed" if x == "Yes" else "Salaried")
     
-    with col2:
-        loan_term = st.number_input("Loan Term (Years)", value=12)
-        cibil_score = st.number_input("CIBIL Score", value=750, min_value=300, max_value=900)
-        residential_assets = st.number_input("Residential Asset Value ($)", value=4000000)
-        commercial_assets = st.number_input("Commercial Asset Value ($)", value=2500000)
-        luxury_assets = st.number_input("Luxury Asset Value ($)", value=8000000)
-        bank_assets = st.number_input("Bank Asset Value ($)", value=5000000)
+    st.subheader("Financial Metrics")
+    income_annum = st.number_input("Annual Income ($)", min_value=0, value=7500000, step=50000)
+    loan_amount = st.number_input("Requested Loan Amount ($)", min_value=0, value=15000000, step=50000)
+    loan_term = st.number_input("Loan Term (Years)", min_value=1, max_value=30, value=12, step=1)
+    cibil_score = st.slider("CIBIL Credit Score", min_value=300, max_value=900, value=750, step=1)
 
-    submitted = st.form_submit_button("Predict Approval Status")
+    st.subheader("Valued Assets ($)")
+    residential_assets_value = st.number_input("Residential Asset Value", min_value=0, value=4000000, step=25000)
+    commercial_assets_value = st.number_input("Commercial Asset Value", min_value=0, value=2500000, step=25000)
+    luxury_assets_value = st.number_input("Luxury Asset Value", min_value=0, value=8000000, step=25000)
+    bank_asset_value = st.number_input("Bank Asset Value", min_value=0, value=5000000, step=25000)
 
-if submitted:
-    features = np.array([[
-        loan_id, no_of_dependents, education, self_employed,
-        income_annum, loan_amount, loan_term, cibil_score,
-        residential_assets, commercial_assets, luxury_assets, bank_assets
-    ]])
-    
-    pred = model.predict(features)[0]
-    proba = model.predict_proba(features)[0]
+    submit_button = st.form_submit_button(label="Evaluate Loan Eligibility")
 
-    st.divider()
-    if pred == 1:
-        st.success(f"✅ **LOAN APPROVED** (Confidence: {proba[1]*100:.1f}%)")
+# 3. Prediction & Output Display
+col_left, col_right = st.columns([1, 1])
+
+with col_left:
+    st.subheader("Entered Profile Summary")
+    summary_df = pd.DataFrame({
+        "Metric": ["Dependents", "Education", "Self Employed", "Annual Income", "Loan Requested", "Loan Term", "CIBIL Score"],
+        "Value": [
+            no_of_dependents, education, "Yes" if self_employed == "Yes" else "No",
+            f"${income_annum:,}", f"${loan_amount:,}", f"{loan_term} Years", cibil_score
+        ]
+    })
+    st.dataframe(summary_df, use_container_width=True, hide_index=True)
+
+with col_right:
+    st.subheader("Model Evaluation Result")
+
+    if submit_button:
+        try:
+            # Construct DataFrame matching training dataset structure
+            input_data = pd.DataFrame([{
+                'no_of_dependents': int(no_of_dependents),
+                'education': str(education),
+                'self_employed': str(self_employed),
+                'income_annum': float(income_annum),
+                'loan_amount': float(loan_amount),
+                'loan_term': float(loan_term),
+                'cibil_score': float(cibil_score),
+                'residential_assets_value': float(residential_assets_value),
+                'commercial_assets_value': float(commercial_assets_value),
+                'luxury_assets_value': float(luxury_assets_value),
+                'bank_asset_value': float(bank_asset_value)
+            }])
+
+            # Execute pipeline prediction
+            prediction = pipeline.predict(input_data)[0]
+            
+            # Predict Probabilities
+            has_proba = hasattr(pipeline, "predict_proba")
+            if has_proba:
+                probabilities = pipeline.predict_proba(input_data)[0]
+                prob_approved = probabilities[1]
+                prob_rejected = probabilities[0]
+
+            # Render UI based on Prediction
+            if prediction == 1:
+                st.success("🎉 **LOAN APPLICATION APPROVED**")
+                if has_proba:
+                    st.metric(label="Approval Confidence", value=f"{prob_approved * 100:.1f}%")
+                    st.progress(float(prob_approved))
+                st.info("Applicant meets credit risk standards and asset valuation thresholds.")
+            else:
+                st.error("❌ **LOAN APPLICATION REJECTED**")
+                if has_proba:
+                    st.metric(label="Rejection Risk Probability", value=f"{prob_rejected * 100:.1f}%")
+                    st.progress(float(prob_rejected))
+                st.warning("Applicant does not meet minimum risk criteria or asset ratio bounds.")
+
+        except Exception as e:
+            st.error(f"An error occurred during evaluation: {str(e)}")
+            st.exception(e)
     else:
-        st.error(f"❌ **LOAN REJECTED** (Risk Probability: {proba[0]*100:.1f}%)")
+        st.info("👈 Adjust applicant parameters in the sidebar and click **Evaluate Loan Eligibility**.")
