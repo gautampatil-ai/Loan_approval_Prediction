@@ -1,192 +1,152 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import pickle
 import os
-from sklearn.preprocessing import LabelEncoder
-from xgboost import XGBClassifier
+import pickle
+import numpy as np
+from flask import Flask, render_template_string, request, jsonify
 
-# -----------------------------------------------------------------------------
-# 1. Page Configuration
-# -----------------------------------------------------------------------------
-st.set_page_config(
-    page_title="Loan Approval Prediction System",
-    page_icon="💳",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+app = Flask(__name__)
 
-st.markdown("""
-    <style>
-    .main-header {
-        font-size: 2.3rem;
-        font-weight: 700;
-        color: #1E3A8A;
-        text-align: center;
-        margin-bottom: 0.5rem;
-    }
-    .sub-header {
-        font-size: 1.1rem;
-        color: #4B5563;
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    </style>
-""", unsafe_allow_html=True)
+MODEL_PATH = os.path.join(os.path.dirname(__file__), 'model.pkl')
 
+def load_model():
+    """Loads the pre-trained RandomForestClassifier model."""
+    if os.path.exists(MODEL_PATH):
+        with open(MODEL_PATH, 'rb') as f:
+            return pickle.load(f)
+    return None
 
-# -----------------------------------------------------------------------------
-# 2. Self-Contained In-Memory Model Trainer & Loader
-# -----------------------------------------------------------------------------
-@st.cache_resource
-def load_model_assets():
-    # 1. Generate clean training data matching dataset schema
-    np.random.seed(42)
-    n_samples = 1200
+model = load_model()
 
-    data = {
-        "no_of_dependents": np.random.randint(0, 6, n_samples),
-        "education": np.random.choice([" Graduate", " Not Graduate"], n_samples),
-        "self_employed": np.random.choice([" No", " Yes"], n_samples),
-        "income_annum": np.random.randint(200000, 9900000, n_samples),
-        "loan_amount": np.random.randint(300000, 39500000, n_samples),
-        "loan_term": np.random.randint(2, 21, n_samples),
-        "cibil_score": np.random.randint(300, 901, n_samples),
-        "residential_assets_value": np.random.randint(0, 29100000, n_samples),
-        "commercial_assets_value": np.random.randint(0, 19400000, n_samples),
-        "luxury_assets_value": np.random.randint(200000, 39200000, n_samples),
-        "bank_asset_value": np.random.randint(0, 14700000, n_samples),
-    }
+# Standard web interface rendering without HTML page files
+INDEX_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Loan Eligibility AI Predictor</title>
+</head>
+<body style="font-family: Arial, sans-serif; background-color: #0f172a; color: #f8fafc; padding: 20px;">
 
-    df = pd.DataFrame(data)
+    <h2>Loan Approval Prediction Engine</h2>
 
-    # Business rule logic for synthetic dataset target creation
-    loan_status_prob = (df["cibil_score"] > 600) & (df["loan_amount"] < df["income_annum"] * 5)
-    df["loan_status"] = np.where(loan_status_prob, " Approved", " Rejected")
+    <form action="/predict-form" method="POST" style="max-width: 600px; background: #1e293b; padding: 20px; border-radius: 8px;">
+        <h3>Applicant Info</h3>
+        
+        <label>Loan ID:</label><br>
+        <input type="number" name="loan_id" value="1001" required><br><br>
 
-    # Fit Encoders
-    encoders = {}
-    for col in df.select_dtypes(include="object").columns:
-        le = LabelEncoder()
-        df[col] = le.fit_transform(df[col])
-        encoders[col] = le
+        <label>Number of Dependents:</label><br>
+        <input type="number" name="no_of_dependents" value="2" min="0" max="10" required><br><br>
 
-    X = df.drop("loan_status", axis=1)
-    y = df["loan_status"]
+        <label>Education Status:</label><br>
+        <select name="education">
+            <option value="0">Graduate</option>
+            <option value="1">Not Graduate</option>
+        </select><br><br>
 
-    # Train XGBoost Model
-    model = XGBClassifier(
-        n_estimators=300,
-        max_depth=6,
-        learning_rate=0.05,
-        random_state=42
-    )
-    model.fit(X, y)
+        <label>Employment Status:</label><br>
+        <select name="self_employed">
+            <option value="0">Salaried / Employed</option>
+            <option value="1">Self Employed</option>
+        </select><br><br>
 
-    return model, encoders, X.columns.tolist()
+        <label>CIBIL Score (300 - 900):</label><br>
+        <input type="number" name="cibil_score" value="750" min="300" max="900" required><br><br>
 
+        <h3>Financial Info</h3>
 
-# -----------------------------------------------------------------------------
-# 3. NOW CALL THE FUNCTION (After it has been defined)
-# -----------------------------------------------------------------------------
-model, encoders, feature_names = load_model_assets()
+        <label>Annual Income ($):</label><br>
+        <input type="number" name="income_annum" value="6500000" required><br><br>
 
-if not feature_names:
-    feature_names = [
-        'no_of_dependents', 'education', 'self_employed', 'income_annum',
-        'loan_amount', 'loan_term', 'cibil_score', 'residential_assets_value',
-        'commercial_assets_value', 'luxury_assets_value', 'bank_asset_value'
-    ]
+        <label>Requested Loan Amount ($):</label><br>
+        <input type="number" name="loan_amount" value="15000000" required><br><br>
 
+        <label>Loan Term (Years):</label><br>
+        <input type="number" name="loan_term" value="12" required><br><br>
 
-# -----------------------------------------------------------------------------
-# 4. User Interface Inputs
-# -----------------------------------------------------------------------------
-st.markdown('<div class="main-header">🏦 Smart Loan Eligibility Predictor</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">AI-Powered Risk Assessment Engine using XGBoost</div>', unsafe_allow_html=True)
+        <h3>Declared Asset Values</h3>
 
-st.subheader("📋 Borrower Information")
-col1, col2 = st.columns(2, gap="large")
+        <label>Residential Assets ($):</label><br>
+        <input type="number" name="residential_assets_value" value="4000000" required><br><br>
 
-with col1:
-    st.markdown("#### 👤 Demographics & Employment")
-    no_of_dependents = st.number_input("Number of Dependents", min_value=0, max_value=10, value=1, step=1)
-    
-    if isinstance(encoders, dict) and 'education' in encoders and hasattr(encoders['education'], 'classes_'):
-        education_opts = list(encoders['education'].classes_)
-    else:
-        education_opts = [" Graduate", " Not Graduate"]
+        <label>Commercial Assets ($):</label><br>
+        <input type="number" name="commercial_assets_value" value="2500000" required><br><br>
 
-    if isinstance(encoders, dict) and 'self_employed' in encoders and hasattr(encoders['self_employed'], 'classes_'):
-        self_employed_opts = list(encoders['self_employed'].classes_)
-    else:
-        self_employed_opts = [" No", " Yes"]
+        <label>Luxury Assets ($):</label><br>
+        <input type="number" name="luxury_assets_value" value="8000000" required><br><br>
 
-    education = st.selectbox("Education Level", options=education_opts)
-    self_employed = st.selectbox("Self Employed?", options=self_employed_opts)
-    income_annum = st.number_input("Annual Income ($)", min_value=0, value=500000, step=10000)
+        <label>Bank Assets ($):</label><br>
+        <input type="number" name="bank_asset_value" value="5000000" required><br><br>
 
-with col2:
-    st.markdown("#### 💰 Financials & Collateral")
-    loan_amount = st.number_input("Loan Amount ($)", min_value=0, value=1500000, step=10000)
-    loan_term = st.slider("Loan Term (Years)", min_value=1, max_value=30, value=10)
-    cibil_score = st.slider("CIBIL / Credit Score", min_value=300, max_value=900, value=750)
-    
-    asset_col_a, asset_col_b = st.columns(2)
-    with asset_col_a:
-        residential_assets = st.number_input("Residential Assets ($)", min_value=0, value=200000, step=5000)
-        commercial_assets = st.number_input("Commercial Assets ($)", min_value=0, value=100000, step=5000)
-    with asset_col_b:
-        luxury_assets = st.number_input("Luxury Assets ($)", min_value=0, value=50000, step=5000)
-        bank_asset_value = st.number_input("Bank Asset Value ($)", min_value=0, value=100000, step=5000)
+        <button type="submit" style="background: #4f46e5; color: white; padding: 10px 20px; border: none; cursor: pointer;">Submit Request</button>
+    </form>
 
+    {% if result %}
+    <div style="margin-top: 20px; padding: 20px; background: #334155; border-radius: 8px; max-width: 600px;">
+        <h3>Prediction Result</h3>
+        <p><strong>Status:</strong> {{ result.status }}</p>
+        <p><strong>Confidence:</strong> {{ result.confidence }}%</p>
+        <p><strong>Approval Probability:</strong> {{ result.probability_approved }}%</p>
+        <p><strong>Rejection Probability:</strong> {{ result.probability_rejected }}%</p>
+    </div>
+    {% endif %}
 
-# -----------------------------------------------------------------------------
-# 5. Prediction Execution
-# -----------------------------------------------------------------------------
-input_dict = {
-    'no_of_dependents': no_of_dependents,
-    'education': education,
-    'self_employed': self_employed,
-    'income_annum': income_annum,
-    'loan_amount': loan_amount,
-    'loan_term': loan_term,
-    'cibil_score': cibil_score,
-    'residential_assets_value': residential_assets,
-    'commercial_assets_value': commercial_assets,
-    'luxury_assets_value': luxury_assets,
-    'bank_asset_value': bank_asset_value
-}
+</body>
+</html>
+"""
 
-df_input = pd.DataFrame([input_dict])
+@app.route('/', methods=['GET'])
+def index():
+    return render_template_string(INDEX_TEMPLATE, result=None)
 
-for col in ['education', 'self_employed']:
-    if isinstance(encoders, dict) and col in encoders and hasattr(encoders[col], 'transform'):
-        try:
-            df_input[col] = encoders[col].transform(df_input[col])
-        except Exception:
-            df_input[col] = 0
-    else:
-        df_input[col] = df_input[col].map({' Graduate': 0, ' Not Graduate': 1, ' No': 0, ' Yes': 1}).fillna(0)
+@app.route('/predict-form', methods=['POST'])
+def predict_form():
+    result = run_prediction(request.form)
+    return render_template_string(INDEX_TEMPLATE, result=result)
 
-df_input = df_input[feature_names]
-st.divider()
+@app.route('/predict', methods=['POST'])
+def predict_json():
+    data = request.get_json(force=True) if request.is_json else request.form
+    result = run_prediction(data)
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
 
-if st.button("🚀 Evaluate Loan Application", use_container_width=True, type="primary"):
-    prediction = model.predict(df_input)[0]
-    probabilities = model.predict_proba(df_input)[0]
+def run_prediction(data):
+    try:
+        if model is None:
+            return {'error': 'Model file not found. Place model.pkl in root directory.'}
 
-    st.subheader("📊 Evaluation Results")
-    res_col1, res_col2 = st.columns([1, 2])
+        features = [
+            float(data.get('loan_id', 1)),
+            float(data.get('no_of_dependents', 0)),
+            float(data.get('education', 0)),
+            float(data.get('self_employed', 0)),
+            float(data.get('income_annum', 0)),
+            float(data.get('loan_amount', 0)),
+            float(data.get('loan_term', 0)),
+            float(data.get('cibil_score', 0)),
+            float(data.get('residential_assets_value', 0)),
+            float(data.get('commercial_assets_value', 0)),
+            float(data.get('luxury_assets_value', 0)),
+            float(data.get('bank_asset_value', 0))
+        ]
 
-    with res_col1:
-        if prediction == 1 or str(prediction).strip() in ['1', 'Approved', ' Approved']:
-            st.success("### Result: APPROVED ✅")
-            st.balloons()
-        else:
-            st.error("### Result: REJECTED ❌")
+        input_data = np.array([features])
+        prediction = model.predict(input_data)[0]
+        probabilities = model.predict_proba(input_data)[0]
 
-    with res_col2:
-        approval_prob = probabilities[1] * 100 if len(probabilities) > 1 else 100
-        st.write(f"**Approval Probability:** `{approval_prob:.2f}%`")
-        st.progress(int(approval_prob))
+        confidence = round(float(np.max(probabilities)) * 100, 2)
+        status = "Approved" if prediction == 1 else "Rejected"
+
+        return {
+            'status': status,
+            'prediction': int(prediction),
+            'confidence': confidence,
+            'probability_approved': round(float(probabilities[1]) * 100, 2) if len(probabilities) > 1 else 100.0,
+            'probability_rejected': round(float(probabilities[0]) * 100, 2) if len(probabilities) > 1 else 0.0
+        }
+
+    except Exception as e:
+        return {'error': str(e)}
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
