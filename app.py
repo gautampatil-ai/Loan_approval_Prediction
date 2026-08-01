@@ -1,47 +1,77 @@
-import os
-import pickle
-import pandas as pd
-import numpy as np
 import streamlit as st
+import pandas as pd
+import pickle
 
-# Load Model
-MODEL_PATH = os.path.join(os.path.dirname(__file__), 'model.pkl')
 
-@st.cache_resource
-def load_model():
-    if os.path.exists(MODEL_PATH):
-        with open(MODEL_PATH, 'rb') as f:
-            return pickle.load(f)
-    return None
+# Load model
+model = pickle.load(open("model.pkl", "rb"))
 
-model = load_model()
+st.title("Loan Approval Prediction")
 
-st.set_page_config(page_title="Loan Eligibility Predictor", layout="centered")
-st.title("🏦 Loan Approval Predictor")
 
-if model is None:
-    st.error("Model file `model.pkl` not found!")
-    st.stop()
+# User Inputs
+loan_id = st.number_input("Loan ID", value=1)
 
-# Inputs
-col1, col2 = st.columns(2)
+no_of_dependents = st.number_input(
+    "Number of Dependents",
+    min_value=0,
+    max_value=10,
+    value=0
+)
 
-with col1:
-    loan_id = st.number_input("Loan ID", value=1001)
-    dependents = st.number_input("Dependents", value=2, min_value=0, max_value=10)
-    education = st.selectbox("Education", options=[0, 1], format_func=lambda x: "Graduate" if x == 0 else "Not Graduate")
-    self_employed = st.selectbox("Employment", options=[0, 1], format_func=lambda x: "Salaried" if x == 0 else "Self Employed")
-    cibil_score = st.slider("CIBIL Score", 300, 900, 750)
-    income_annum = st.number_input("Annual Income ($)", value=6500000)
+education = st.selectbox(
+    "Education",
+    ["Graduate", "Not Graduate"]
+)
 
-with col2:
-    loan_amount = st.number_input("Loan Amount ($)", value=15000000)
-    loan_term = st.number_input("Loan Term (Years)", value=12)
-    res_assets = st.number_input("Residential Assets ($)", value=4000000)
-    comm_assets = st.number_input("Commercial Assets ($)", value=2500000)
-    lux_assets = st.number_input("Luxury Assets ($)", value=8000000)
-    bank_assets = st.number_input("Bank Assets ($)", value=5000000)
+self_employed = st.selectbox(
+    "Self Employed",
+    ["Yes", "No"]
+)
 
+income_annum = st.number_input(
+    "Annual Income",
+    min_value=0
+)
+
+loan_amount = st.number_input(
+    "Loan Amount",
+    min_value=0
+)
+
+loan_term = st.number_input(
+    "Loan Term",
+    min_value=0
+)
+
+cibil_score = st.number_input(
+    "CIBIL Score",
+    min_value=0,
+    max_value=900
+)
+
+residential_assets_value = st.number_input(
+    "Residential Assets Value",
+    min_value=0
+)
+
+commercial_assets_value = st.number_input(
+    "Commercial Assets Value",
+    min_value=0
+)
+
+luxury_assets_value = st.number_input(
+    "Luxury Assets Value",
+    min_value=0
+)
+
+bank_asset_value = st.number_input(
+    "Bank Asset Value",
+    min_value=0
+)
+
+
+# Prediction
 if st.button("Predict"):
 
     features = pd.DataFrame([{
@@ -59,7 +89,9 @@ if st.button("Predict"):
         "bank_asset_value": bank_asset_value
     }])
 
+
     prediction = model.predict(features)[0]
+
 
     if prediction == 1:
         st.success("Loan Approved ✅")
