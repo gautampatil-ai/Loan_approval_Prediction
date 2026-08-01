@@ -42,27 +42,26 @@ with col2:
     lux_assets = st.number_input("Luxury Assets ($)", value=8000000)
     bank_assets = st.number_input("Bank Assets ($)", value=5000000)
 
-if st.button("Predict Eligibility", type="primary"):
+if st.button("Predict"):
 
-features = pd.DataFrame([{
-    "loan_id": loan_id,
-    "no_of_dependents": dependents,
-    "education": education,
-    "self_employed": self_employed,
-    "income_annum": income_annum,
-    "loan_amount": loan_amount,
-    "loan_term": loan_term,
-    "cibil_score": cibil_score,
-    "residential_assets_value": res_assets,
-    "commercial_assets_value": comm_assets,
-    "luxury_assets_value": lux_assets,
-    "bank_asset_value": bank_assets
-}])
-    
+    features = pd.DataFrame([{
+        "loan_id": loan_id,
+        "no_of_dependents": no_of_dependents,
+        "education": education,
+        "self_employed": self_employed,
+        "income_annum": income_annum,
+        "loan_amount": loan_amount,
+        "loan_term": loan_term,
+        "cibil_score": cibil_score,
+        "residential_assets_value": residential_assets_value,
+        "commercial_assets_value": commercial_assets_value,
+        "luxury_assets_value": luxury_assets_value,
+        "bank_asset_value": bank_asset_value
+    }])
+
     prediction = model.predict(features)[0]
-    probs = model.predict_proba(features)[0]
-    
+
     if prediction == 1:
-        st.success(f"✅ Loan Approved! (Confidence: {max(probs)*100:.2f}%)")
+        st.success("Loan Approved ✅")
     else:
-        st.error(f"❌ Loan Rejected. (Confidence: {max(probs)*100:.2f}%)")
+        st.error("Loan Rejected ❌")
